@@ -1,4 +1,4 @@
-/*实现异步工作器*/
+/*Implement asynchronous logger*/
 
 #ifndef __M_LOOP_H__
 #define __M_LOOP_H__
@@ -18,8 +18,8 @@ namespace Logs
 
     enum class AsyncType
     {
-        ASYNC_SAFE,//满了就阻塞
-        ASYNC_UNSAFE//无限扩容, 用于测试 
+        ASYNC_SAFE,//Blocked when full
+        ASYNC_UNSAFE//Unlimited expansion for testing
     };
 
     class AsyncLooper
@@ -36,9 +36,9 @@ namespace Logs
 
         void stop()
         {
-            _stop = true;//对应下面的worker_loop
+            _stop = true;//Corresponds to worker_loop
             _pop_cond.notify_all();
-            _thread.join();//等待工作线程退出然后回收
+            _thread.join();//Wait for the worker thread to exit and then recycle
         }
 
         void push(const std::string &msg)
@@ -46,45 +46,48 @@ namespace Logs
             if (_stop) return;
             {
                 std::unique_lock<std::mutex> lock(_mutex);
-                //直接就实现为阻塞等待, 也就是原来的AsyncType::ASYNC_SAFE
+                //Directly implemented as blocking waiting, which is the original AsyncType::ASYNC_SAFE
                 _push_cond.wait(lock, [&]{ return _tasks_push.writeAbleSize() >= msg.size(); });
                 _tasks_push.push(msg.c_str(), msg.size());
             }
             _pop_cond.notify_all();
         }
     private:
-        //线程入口函数
-        //线程被唤醒后就自己执行这个函数
-        void worker_loop()//处理消费缓冲区内的数据, 处理完后初始化缓冲区, 交换缓冲区
+        //threadRoutine function
+        //After the thread is awakened, it will execute this function
+        //Process the data in the consumption buffer, initialize the buffer after processing, and exchange the buffer
+        void worker_loop()
         {
             while(1)
             {
-                {//这种大括号的作用是设定一个生命周期, 这样加的锁在交换后就会自动解锁
-                    // 1、判断生产缓冲区有没有数据, 有则交换, 无则阻塞
+                {//{} is to set a life cycle so that the added lock will be automatically unlocked after the exchange.
+                    // 1、Determine whether there is data in the production buffer, exchange if there is, or block if not
                     std::unique_lock<std::mutex> lock(_mutex);
-                    if (_stop && _tasks_push.empty()) { return; }//防止生产缓冲区还有数据没有处理就退出了
-                    _pop_cond.wait(lock, [&]{ return !_tasks_push.empty() || _stop; });//意思就是生产缓冲区还有数据或者整体要停止工作了
+                    if (_stop && _tasks_push.empty()) { return; }//Prevent the production buffer from exiting without processing data
+                    //This means that there is still data in the production buffer or the whole is about to stop working
+                    _pop_cond.wait(lock, [&]{ return !_tasks_push.empty() || _stop; });
                     _tasks_push.swap(_tasks_pop);
                 }
-                //2、唤醒生产者
-                _push_cond.notify_all();//代码已经实现为阻塞模式, 只有阻塞才有线程需要被唤醒
-                //3、被唤醒后, 对消费缓冲区进行数据处理
+                //2、Wake up producers
+                //The code has been implemented in blocking mode. Only when blocked can threads need to be awakened
+                _push_cond.notify_all();
+                //3、After waking up, perform data processing on the consumption buffer
                 _callBack(_tasks_pop);
-                //4、初始化消费缓冲区
+                //4、Initialize consumption buffer
                 _tasks_pop.reset();
             }
             return ;
         }
     private:
-        std::atomic<bool> _stop;//用来停止工作器
+        std::atomic<bool> _stop;//Used to stop logger
         std::mutex _mutex;
-        std::thread _thread;//异步工作器对应的工作线程
-        Functor _callBack;//对缓冲区数据处理用的回调函数
+        std::thread _thread;//Async worker worker thread
+        Functor _callBack;//Callback function for buffer data processing
         AsyncType _looper_type;
-        std::condition_variable _push_cond;//生产者条件变量
-        std::condition_variable _pop_cond;//_消费者条件变量
-        Buffer _tasks_push;//生产缓冲区
-        Buffer _tasks_pop;//消费缓冲区
+        std::condition_variable _push_cond;//Producer condition variable
+        std::condition_variable _pop_cond;//Consumer condition variable
+        Buffer _tasks_push;//Production buffer
+        Buffer _tasks_pop;//Consumption buffer
     };
 }
 
