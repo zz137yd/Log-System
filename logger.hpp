@@ -1,6 +1,6 @@
-/*完成日志器模块:
-    1、日志器基类
-    2、不同派生类（同、异步日志器类）
+/*Completing logger module:
+    1、Logger base class
+    2、Different derived classes (synchronous and asynchronous logger classes)
 */
 
 #ifndef __M_LOG_H__
@@ -40,18 +40,18 @@ namespace Logs
                                                                  _sinks(sinks.begin(), sinks.end()),
                                                                  _level(level) {}
 
-        //const修饰的引用, 这样外部无法更改, 或者也可以std::string, 不加&
+        //A reference modified by const, so that it can't be changed externally, or std::string without &
         const std::string& name() {return _logger_name; }
         LogLevel::value loggerLevel() {return _level; }
 
-        //通过传入的参数构造出一个日志消息对象, 进行日志格式化, 最终落地
+        //Construct the log message object by passing in parameters, format the log, and finally sink
         void debug(const char* file, size_t line, const char* fmt, ...)
         {
-            //1、判断当前日志是否达到输出等级
+            //1、Determine whether the current log reaches the output level
             if(LogLevel::value::Debug < _level) {return ;}
 
-            //2、对fmt格式化字符串和不定参数进行字符串组织, 得到的日志信息的字符串
-            //对不定参进行格式化
+            //2、Organize the fmt formatted string and variable parameters into string, and obtain log information string
+            //Format variable parameters
             va_list ap;
             va_start(ap, fmt);
             log(LogLevel::value::Debug, file, line, fmt, ap);
@@ -99,31 +99,31 @@ namespace Logs
             char* buf;
             std::string msg;
             int len = vasprintf(&buf, fmt, ap);
-            if(len < 0) msg = "格式化日志消息失败! ";
+            if(len < 0) msg = "Failed to format log message! ";
             else
             {
                 msg.assign(buf, len);
                 free(buf);
             }
-            //3、构造日志消息对象
+            //3、Construct log message object
             LogMsg lm(level, line, file, _logger_name, msg);
-            //4、得到格式化后的字符串
+            //4、Get the formatted string
             std::stringstream ss;
             _formatter->format(ss, lm);
-            //5、日志落地
+            //5、Log sink
             logIt(ss.str());
         }
 
         virtual void logIt(const std::string& msg) = 0;
     protected:
-        std::mutex _mutex;//保证日志落地的线程安全
+        std::mutex _mutex;//Ensure the thread safety of log sink
         std::string _logger_name;
-        Formatter::ptr _formatter;//format.hpp中Formatter类加上智能指针
-        std::vector<LogSink::ptr> _sinks;//落地
-        std::atomic<LogLevel::value> _level;//限制等级, 在多线程中只能原子访问而避免了加锁冲突等
+        Formatter::ptr _formatter;//The Formatter class in format.hpp uses smart pointer
+        std::vector<LogSink::ptr> _sinks;//Sink
+        std::atomic<LogLevel::value> _level;//Restriction level, only atomic access in multi-threads can avoid lock conflicts, etc
     };
 
-    //同步日志器
+    //Synchronous logger
     class SyncLogger : public Logger
     {
     public:
@@ -134,14 +134,14 @@ namespace Logs
                    std::vector<LogSink::ptr>& sinks,
                    LogLevel::value level = LogLevel::value::Info) : Logger(logger_name, formatter, sinks, level)
         {
-            std::cout << LogLevel::toString(level) << " 同步日志器: " << _logger_name<< " 创建成功...\n" << std::endl;
+            std::cout << LogLevel::toString(level) << " Synchronous logger: " << _logger_name<< " created successfully...\n" << std::endl;
         }
 
     protected:
-        //将日志通过落地模块句柄来落地
+        //Sink the log through the sink module handle
         virtual void logIt(const std::string& msg)
         {
-            //自动加锁, 等到lock释放时就自动解锁
+            //Automatically lock and automatically unlock when lock destroyed
             std::unique_lock<std::mutex> lock(_mutex);
             if (_sinks.empty()) return ;
             for (auto &sink : _sinks)
@@ -163,11 +163,12 @@ namespace Logs
             : Logger(logger_name, formatter, sinks, level)
             , _looper(std::make_shared<AsyncLooper>(std::bind(&AsyncLogger::backendLogIt, this, std::placeholders::_1)))
         {
-            std::cout << LogLevel::toString(level) << " 异步日志器: " << name() << " 创建成功...\n" << std::endl;
-        }//用绑定, 因为backendLogIt还会自带一个this指针, 用bind后, 只有1, 那就说明backendLogIt已经被绑定, 所以只传一个参数而不传this即可
+            std::cout << LogLevel::toString(level) << " Asynchronous logger: " << name() << " created successfully...\n" << std::endl;
+        }//Use bind, because backendLogIt also comes with a this pointer
+        //After using bind, there is only 1, which means that backendLogIt has been bound, so just pass one parameter instead of this
 
     protected:
-        //数据写入缓冲区
+        //Write data to buffer
         void logIt(const std::string& msg) {_looper->push(msg); }
 
         void backendLogIt(Buffer &msg)
@@ -180,9 +181,9 @@ namespace Logs
         AsyncLooper::ptr _looper;
     };
 
-    // 建造者模式建造日志器
-    // 1、抽象一个日志器建造者类
-    // 2、设置日志器类型，将不同类型的日志器的创建放到同一个日志器建造者类中完成
+    // Building a logger using builder pattern
+    // 1、Abstract a logger builder class
+    // 2、Set the logger type and put the creation of different types of loggers into the same logger builder class
     class Builder
     {
     public:
@@ -215,14 +216,15 @@ namespace Logs
 
     protected:
         Logger::Type _logger_type;
-        std::string _logger_name;//日志器名称, 之后要通过名称找到日志器
+        std::string _logger_name;//Find the logger by _logger_name
         LogLevel::value _level;
         Formatter::ptr _formatter;
         std::vector<LogSink::ptr> _sinks;
     };
 
-    //3、派生出具体的建造者类，包括局部、全局日志器建造者，全局是添加了全局单例管理器，将日志器添加到全局管理器中
-    //局部日志器
+    //3、Derive specific builder classes, including local and global logger builders
+    //The global logger adds a global singleton manager and adds logger to global manager
+    //Local logger
     class LocalLoggerBuilder : public Builder
     {
     public:
@@ -230,17 +232,17 @@ namespace Logs
         {
             if(_logger_name.empty())
             {
-                std::cout << "日志器名称不能为空! ";
+                std::cout << "Logger name can't be empty! ";
                 abort();
             }
             if(_formatter.get() == nullptr) 
             {
-                std::cout << "当前日志器: " << _logger_name << " 未检测到日志格式，默认设置为[ %d{%H:%M:%S}%T%t%T[%p]%T[%c]%T%f:%l%T%m%n ]!\n";
+                std::cout << "Current logger: " << _logger_name << " doesn't detect log format, default is [ %d{%H:%M:%S}%T%t%T[%p]%T[%c]%T%f:%l%T%m%n ]! \n";
                 _formatter = std::make_shared<Formatter>(); 
             }
             if(_sinks.empty()) 
             {
-                std::cout << "当前日志器: " << _logger_name << " 未检测到落地方向，默认设置为标准输出!\n";
+                std::cout << "Current logger: " << _logger_name << " doesn't detect the sink direction, and default setting is standard output! \n";
                 buildSink<StdoutSink>(); 
             }
             Logger::ptr lp;
@@ -257,8 +259,8 @@ namespace Logs
     public:
         static LoggerManager& getInstance()
         {
-            //C++11后, 针对静态局部变量, 编译器在编译的层面实现了线程安全
-            //在静态变量没有构造完成之前, 其它线程只能阻塞等待
+            //After C++11, the compiler implements thread safety while compiling for static local variables
+            //Before the static variable is constructed, other threads can only block and wait
             static LoggerManager eton;
             return eton;
         }
@@ -274,10 +276,12 @@ namespace Logs
             return true;
         }
 
-        void addLogger(const std::string& name, Logger::ptr& logger)//添加日志器
+        void addLogger(const std::string& name, Logger::ptr& logger)//Add logger
         {
-            //当使用全局日志管理器创建单例对象时, 就已经创建了一个名为root的同步日志器, 用_root_logger来保存
-            //即使调用add函数时也传了root名字也没问题, 因为它会被添加到_loggers, 和_root_logger没关系
+            //When using the global log manager to create a singleton object
+            //A synchronous logger named root has been created and saved with _root_logger
+            //Even if the root name is passed when calling the add function, there is no problem
+            //Because it will be added to _loggers, it has nothing to do with _root_logger
             if(hasLogger(logger->name())) return ;
             std::unique_lock<std::mutex> lock(_mutex);
             _loggers.insert(std::make_pair(name, logger));
@@ -299,23 +303,24 @@ namespace Logs
     private:
         LoggerManager()
         {
-            //这句不能创建全局是因为会造成死循环, 看全局的这句: LoggerManager::getInstance().addLogger(logger);
+            //This sentence cannot create a global manager because it will cause an infinite loop
+            //Look at this global sentence: LoggerManager::getInstance().addLogger(logger);
             std::unique_ptr<LocalLoggerBuilder> builder(new LocalLoggerBuilder());
-            //LocalLoggerBuilder的build函数都创建了其它参数, 所以这里只需要名字
+            //LocalLoggerBuilder's build function creates other parameters, so only the name is needed here
             builder->buildLoggerName("root");
             builder->buildLoggerType(Logger::Type::LOGGER_SYNC);
-            std::cout << "\n默认创建一个同步日志器，名字为root，等级为Info\n\n";
+            std::cout << "\nBy default, a synchronization logger is created with the name root and level Info \n\n";
             _root_logger = builder->build();
-            //防止有故意要拿默认日志器的情况，所以有下句
+            //To prevent someone from intentionally using the default logger, here is the following sentence:
             _loggers.insert(std::make_pair("root", _root_logger));
         }
     private:
         std::mutex _mutex;
         Logger::ptr _root_logger;
-        std::unordered_map<std::string, Logger::ptr> _loggers;//方便查找
+        std::unordered_map<std::string, Logger::ptr> _loggers;//Easy to find
     };
 
-    //全局是在局部基础上添加一个功能: 将日志器添加到单例对象中
+    //Global is to add a function based on local: add the logger to singleton object
     class GlobalLoggerBuilder : public Builder
     {
     public:
@@ -323,17 +328,17 @@ namespace Logs
         {
             if(_logger_name.empty())
             {
-                std::cout << "日志器名称不能为空! ";
+                std::cout << "Logger name can't be empty! ";
                 abort();
             }
             if(_formatter.get() == nullptr) 
             {
-                std::cout << "当前日志器: " << _logger_name << " 未检测到日志格式，默认设置为[ %d{%H:%M:%S}%T%t%T[%p]%T[%c]%T%f:%l%T%m%n ]!\n";
+                std::cout << "Current logger: " << _logger_name << " doesn't detect log format, default is [ %d{%H:%M:%S}%T%t%T[%p]%T[%c]%T%f:%l%T%m%n ]! \n";
                 _formatter = std::make_shared<Formatter>(); 
             }
             if(_sinks.empty()) 
             {
-                std::cout << "当前日志器: " << _logger_name << " 未检测到落地方向，默认设置为标准输出!\n";
+                std::cout << "Current logger: " << _logger_name << " doesn't detect the sink direction, and default setting is standard output! \n";
                 buildSink<StdoutSink>(); 
             }
             Logger::ptr lp;
