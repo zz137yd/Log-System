@@ -1,10 +1,10 @@
 #ifndef __M_SINK_H__
 #define __M_SINK_H__
 
-/*日志落地模块的实现
-    1、抽象落地基类
-    2、派生子类（根据不同的落地方向进行派生）
-    3、使用工厂模式进行创建与表示的分离
+/*Implementation of log sink module
+    1、Abstract base class for log sink
+    2、Derived classes (derived according to different landing directions)
+    3、Use factory pattern to separate creation and presentation
 */
 
 #include "util.hpp"
@@ -15,11 +15,13 @@
 
 static void R_Create(const std::string& pathname, std::ofstream& ofs)
 {
-    // 1、创建日志文件所在的目录
+    // 1、Create the log files directory
     Logs::LogUtil::File::createDirectory(Logs::LogUtil::File::path(pathname));
-    // 2、创建并打开日志文件
-    ofs.open(pathname, std::ios::binary | std::ios::app); //第二个参数是打开方式, 二进制方式; 默认为写, 这里需要追加, 所以有|后的内容
-    assert(ofs.is_open());//保证打开成功
+    // 2、Create and open log file
+    //The second parameter indicates the opening mode, binary mode, the default is writing
+    //Now we need to append, so there is content after |
+    ofs.open(pathname, std::ios::binary | std::ios::app); 
+    assert(ofs.is_open());//Ensure successful opening
 }
  
 namespace Logs
@@ -27,14 +29,15 @@ namespace Logs
     class LogSink
     {
     public:
-        using ptr = std::shared_ptr<LogSink>;//各个模块之间是通过抽象, 通过指针来互相访问的, 所以需要智能指针
+        //Each module accesses each other through abstraction and pointers, so smart pointer is used
+        using ptr = std::shared_ptr<LogSink>;
         LogSink() {}
         virtual ~LogSink() {}
         virtual void log(const char* data, size_t len) = 0;
     };
 
 
-    //落地方向: 标准输出
+    //Direction: standard output
     class StdoutSink : public LogSink
     {
     public:
@@ -43,19 +46,20 @@ namespace Logs
         StdoutSink() = default;
         void log(const char* data, size_t len)
         {
-            //不能直接用流输入, 用库里带的重载函数write写到标准输出文件中
-            std::cout.write(data, len);//从data位置写len长度的数据
+            //Can't use stream input directly
+            //Use the overloaded function write in the library to write to the standard output file
+            std::cout.write(data, len);//Write contents of length len from data
         }
     };
 
 
-    //落地方向: 指定文件
+    //Direction: specified file
     class FileSink : public LogSink
     {
     public:
         using ptr = std::shared_ptr<FileSink>;
 
-        //构造时就打开文件, 将操作句柄管理起来
+        //Open the file during construction and manage the operation handle
         FileSink(const std::string& filename):_filename(filename)
         {
             R_Create(_filename, _ofs);
@@ -63,26 +67,27 @@ namespace Logs
 
         const std::string& file() {return _filename; }
 
-        //将日志消息写入到文件
+        //Write log messages to file
         void log(const char* data, size_t len)
         {
             _ofs.write(data, len);
-            //查看当前句柄是否正常, 也就是上面write后是否有异常情况, 有就直接退出
-            if (_ofs.good() == false) std::cout << "日志输出文件失败！\n";
+            //Check whether the current handle is normal
+            //That is, whether there is any abnormality after writing above, and exit directly if so
+            if (_ofs.good() == false) std::cout << "Log output file failed! \n";
         }
     private:
         std::string _filename;
-        std::ofstream _ofs;//通过句柄来写入日志
+        std::ofstream _ofs;//Write to log via handle
     };
 
 
-    //落地方向: 滚动文件
+    //Direction: rolling file
     class RollBySizeSink : public LogSink
     {
     public:
         using ptr = std::shared_ptr<RollBySizeSink>;
 
-        //构造时就打开文件, 将操作句柄管理起来
+        //Open the file when it's constructed and manages the operation handle
         RollBySizeSink(const std::string& basename, size_t max_size)
             : _basename(basename), _max_fsize(max_size), _cur_fsize(0), _name_count(0)
         {
@@ -95,17 +100,18 @@ namespace Logs
         {
             InitLogFile();
             _ofs.write(data, len);
-            if (_ofs.good() == false) std::cout << "以空间区分的日志文件写入失败！\n";
+            if (_ofs.good() == false) std::cout << "Space-differentiated log file write failed! \n";
             _cur_fsize += len;
         }
     private:
-        //这里并没有硬性规定文件最大有多少, 所以文件大小会出现不一样
-        //每次写入前都检查一下, 如果上次写完后大于自己规定的最大大小了, 那就关闭这个文件, 重开一个, 让_ofs指向新文件
+        //There is no stipulation on the maximum file size, so the file size will vary
+        //Check before each write
+        //If it is larger than the specified maximum size after the last write, close the file, reopen one, and let _ofs point to the new file
         void InitLogFile()
         {
             if (_ofs.is_open() == false || _cur_fsize >= _max_fsize)
             {
-                _ofs.close();//先关闭当前文件, 再打开新文件
+                _ofs.close();//Close the current file first, then open the new file
                 std::string pathname = createFilename();
                 _ofs.open(pathname, std::ios::binary | std::ios::app);
                 assert(_ofs.is_open());
@@ -117,10 +123,10 @@ namespace Logs
 
         std::string createFilename()
         {
-            //获取系统时间, 以时间来构造文件名扩展名
+            //Get the system time and use the time to construct the file name extension
             time_t t = time(NULL);
             struct tm lt;
-            localtime_r(&t, &lt);//将时间戳转换为时间结构
+            localtime_r(&t, &lt);//Convert timestamp to time structure
             std::stringstream ss;
             ss << _basename;
             ss << lt.tm_year + 1900;
@@ -135,12 +141,12 @@ namespace Logs
             return ss.str();
         }
     private:
-        size_t _name_count;//当写入内容小时, 防止一瞬间产生大量文件
-        //基础文件名 + 扩展文件名（以时间生成）组成当前输出的实际文件名
-        std::string _basename;//比如.//log/base-20240120.log
+        size_t _name_count;//When writing content is small, prevent a large number of files from being generated in an instant
+        //Base file name + extended file name (generated in time) form the actual file name of the current output
+        std::string _basename;//Example: .//log/base-20240120.log
         std::ofstream _ofs;
-        size_t _max_fsize;//文件最大大小
-        size_t _cur_fsize;//当前文件已写入数据的大小
+        size_t _max_fsize;//maximum file size
+        size_t _cur_fsize;//The size of the data written to the current file
     };
 
     enum class TimeGap
@@ -182,7 +188,7 @@ namespace Logs
             InitLogFile();
             _ofs.write(data, len);
             if (_ofs.good() == false)
-                std::cout << "以时间区分的日志文件写入失败！\n";
+                std::cout << "Time-differentiated log file writing failed! \n";
         }
 
     private:
@@ -201,10 +207,10 @@ namespace Logs
 
         std::string createFilename()
         {
-            //获取系统时间, 以时间来构造文件名扩展名
+            //Get the system time and use the time to construct the file name extension
             time_t t = Logs::LogUtil::Date::now();
             struct tm lt;
-            localtime_r(&t, &lt);//将时间戳转换为时间结构
+            localtime_r(&t, &lt);//Convert timestamp to time structure
             std::stringstream sst;
             sst << _basename;
             sst << lt.tm_year + 1900;
@@ -227,13 +233,14 @@ namespace Logs
         size_t _name_count;
     };
 
-    //即使后续要新增落地方向, 工厂也能生产出来
-    //利用模版来符合开闭原则
-    //不同落地方向的派生类传的参数数量不同, 所以用不定参数
+    //Even if new directions are added in the future, the factory can produce them
+    //Use templates to comply with the opening and closing principle
+    //Derived classes in different landing directions pass different numbers of parameters, so indefinite parameters are used
     class SinkFactory
     {
     public:
-        //写成模版函数, 如果是模版放在class上面, 外面调用时就得写成...SinkFactory<>, 模版函数则是...create<>
+        //Written as a template function, when called from outside, it will be written as...create<>
+        //If the template is placed above the class, it will be written as...SinkFactory<>
         template <typename SinkType, typename... Args>
         static LogSink::ptr create(Args &&...args)
         {
