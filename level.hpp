@@ -1,6 +1,6 @@
 /*
-    1、定义枚举类, 枚举出日志等级
-    2、提供转换接口: 将枚举转换为对应字符串
+    1、Define the level class and enumerate the log levels
+    2、Provides a conversion interface: Convert enumerations to corresponding strings
 */
 
 #ifndef __M_LEVEL_H__
@@ -25,12 +25,12 @@ namespace Logs
             OFF
         };
         
-        //放在静态区, 这样就不需要非得用对象才能访问了, 就可以写Logs::LogLevel::toString
+        //Put it in the static area, so we don't need to use an object to access it, and can write Logs::LogLevel::toString
         static const char* toString(LogLevel::value level)
         {
             switch(level)
             {
-                //适用于微软的编译器
+                //Applicable to Microsoft compiler
                 /*#define TOSTRING(name) #name
                 case value::Debug: return TOSTRING(Debug);
                 case value::Info: return TOSTRING(Info);
@@ -40,7 +40,7 @@ namespace Logs
                 case value::OFF: return TOSTRING(OFF);
                 #undef TOSTRING*/
                 
-                //比较清晰, 这里不需要别的操作
+                //It’s relatively clear and no other operations are needed here.
                 case value::Debug: return "Debug";
                 case value::Info: return "Info";
                 case value::Warn: return "Warn";
