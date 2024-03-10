@@ -5,7 +5,7 @@
 #include <vector>
 #include <cassert>
 #include <sstream>
-#include <tuple>//元组
+#include <tuple>
 
 namespace Logs
 {
@@ -37,7 +37,7 @@ namespace Logs
         }
     };
     
-    class TimeFormatItem : public FormatItem//时间有子格式
+    class TimeFormatItem : public FormatItem//Time has subformat
     {
     public:
         TimeFormatItem(const std::string& fmt = "%H:%M:%S"):_time_fmt(fmt)
@@ -48,14 +48,16 @@ namespace Logs
         void format(std::ostream& out, const LogMsg& msg) override
         {
             struct tm t;
-            localtime_r(&msg._ctime, &t);//从第一个参数中获取当前系统时间, 放到t中, 返回tm结构体的指针
+            //Get the current system time from the first parameter, put it into t, and return tm structure pointer
+            localtime_r(&msg._ctime, &t);
             char tmp[128] = {0};
-            //按照格式来格式化t中的时间, 放到tmp中, 数字表示复制到tmp中的最大字符数, 必须大于格式字符数
+            //Format the time in t according to the format and put it in tmp
+            //The number represents the maximum number of characters copied to tmp, which must be greater than the number of format characters
             strftime(tmp, 127, _time_fmt.c_str(), &t);
-            out << tmp;//放到输出流中
+            out << tmp;//Put in output stream
         }
     private:
-        std::string _time_fmt;//默认是%H:%M:%S
+        std::string _time_fmt;//The default is %H:%M:%S
     };
 
     class FileFormatItem : public FormatItem
@@ -131,15 +133,15 @@ namespace Logs
     };
 
     /*
-        %d 表示日期, 包含子格式 {%H:%M:%S}
-        %t 表示线程ID
-        %c 表示日志器名称
-        %f 表示源码文件名
-        %l 表示源码行号
-        %p 表示日志级别
-        %T 表示制表符缩进
-        %m 表示主体消息
-        %n 表示换行
+        %d date, including subformats: {%H:%M:%S}
+        %t thread id
+        %c logger name
+        %f source code file name
+        %l source code line number
+        %p log level
+        %T tab indent
+        %m body message
+        %n newline
     */
 
     class Formatter
@@ -154,19 +156,19 @@ namespace Logs
 
         const std::string pattern() {return _pattern; }
 
-        //重载, 对消息进行格式化后将字符串放到IO流中
+        //Overloaded, format the message and put string into IO stream
         std::ostream& format(std::ostream& out, const LogMsg& msg)
         {
-            //按照解析的顺序逐个从msg里取出对应的信息
+            //Get the corresponding information from msg one by one in the order of parsing
             for(auto& item : _items)
             {
-                //每个子类都重载了format
+                //Each derived classes overloads format
                 item->format(out, msg);
             }
             return out;
         }
 
-        //对消息进行格式化, 返回格式化后的字符串
+        //Format message and return the formatted string
         std::string format(const LogMsg& msg)
         {
             std::stringstream ss;
@@ -174,123 +176,136 @@ namespace Logs
             return ss.str();
         }
     private:
-        //对格式化规则字符串进行解析并添加到数组中
+        //Parse the formatting rule string and add it to the array
         bool parsePattern()
         {
-            //1、对格式化规则字符串进行解析
-            std::vector<std::tuple<std::string, std::string, int>> arr;//元组不可以修改
-            //std::vector<std::pair<std::string, std::string>> fmt_order;//pair对应的就是字典的用法
+            //1、Parse the formatting rule string
+            std::vector<std::tuple<std::string, std::string, int>> arr;//Tuple can't be modified
+            //std::vector<std::pair<std::string, std::string>> fmt_order;
 
             size_t pos = 0;
-            bool sub_format_error = false;//用来判断是否正确拿到子格式
-            std::string key;//存放%后的格式化字符
-            std::string val;//存放格式化字符后{}中的子格式字符串
-            std::string string_row;//存放非格式化字符
+            //Used to determine whether the subformat is obtained correctly
+            bool sub_format_error = false;
+            std::string key;//Store the formatting characters after %
+            std::string val;//Store the subformat string in {} after the formatting character
+            std::string string_row;//Store unformatted characters
 
-            //默认字符串形式: [%d{%H:%M:%S}][%t][%p][%c][%f:%l] %m%n
+            //Default string form: [%d{%H:%M:%S}][%t][%p][%c][%f:%l] %m%n
             while(pos < _pattern.size())
             {
                 if(_pattern[pos] != '%')
                 {
-                    //这里有++, 循环上去后有可能就越界退出while了
-                    //此时string_row已经有了内容, 所以while结束后还得处理一下它
-                    string_row.append(1, _pattern[pos++]);//string& append (size_t n, char c), 填写n个c
+                    //++. After the loop goes up, it may cross the boundary and exit while
+                    //At this point string_row already has content, so it needs to be processed after while ends.
+                    string_row.append(1, _pattern[pos++]);
+                    //string& append (size_t n, char c), Appends n consecutive copies of character c
                     continue;
                 }
-                //到这里pos指向第一个%
+                //Here pos points to the first %
 
-                //有可能出现%%, 有可能出现[%d%%%F%%F%%%%d]这样的
-                //这里的规则就是允许一个[]内有多个格式化字符, 但必须都是%z这样的, z前有多个%都看作一个%
+                //It is possible that %% occurs, and [%d%%%F%%F%%%%d] may occur
+                //The rule here is that multiple formatting characters are allowed within a [], but their format must be like %z
+                //Multiple % before z are regarded as one %
                 while(pos + 1 < _pattern.size() && _pattern[pos + 1] == '%')
                     ++pos;
-                //此时pos指向%, %后必然有一个字符, 但不知道是不是规定的格式化字符 
+                //At this time, pos points to %. There must be a character after %
+                //But it's not clear whether it is a specified formatting character.
 
-                //先处理非格式化字符
+                //Process unformatted characters first
                 if(string_row.empty() == false)
                 {
-                    //利用元组不可修改的特性, 就固定好了非格式化字符的val就是变为"", 之后调用OtherFormatItem
+                    //Taking advantage of the unmodifiable feature of tuples, the val of the unformatted character is fixed to ""
+                    //And then call OtherFormatItem
                     arr.push_back(std::make_tuple(string_row, "", 0));
                     string_row.clear();
                 }
 
-                ++pos;//pos指向%后字符的起始位置
+                ++pos;//pos points to the starting position of the character after %
 
                 if (pos < _pattern.size() && isalpha(_pattern[pos]))
                 {
-                    key = _pattern[pos];//保存格式化字符
+                    key = _pattern[pos];//Save formatted characters
                 }
-                else//要是没有格式化字符, 且上面也判断不是%, 就出错了
+                else//If there is no formatting character and it's not judged as % above, then error
                 {
-                    std::cout << "从此处开始 " << &_pattern[pos - 1] << " 格式错误！\n";
+                    std::cout << "From here " << &_pattern[pos - 1] << " is malformed! \n";
                     return false;
                 }
-                //也就是说, 上面只判断%, 至于%后的字符怎么样，交给这里的ifelse来处理
+                //In other words, the above only judges %. As for the characters after %, leave it to ifelse here to handle it
 
-                ++pos;//这里看看有没有子格式, 例子: %d{...}, 此时pos在{
+                ++pos;//Check here to see if there is subformat, example: %d{...}, at this time pos is at {
 
-                //这里也要判断是否越界
+                //Here we also need to judge whether we have crossed the line.
                 if (pos < _pattern.size() && _pattern[pos] == '{')
                 {
                     sub_format_error = true;
-                    pos += 1;//pos指向{后, 即子格式第一个字符位置
+                    pos += 1;//pos points to after {, that is, the first character position of the subformat
                     while (pos < _pattern.size())
                     {
-                        if (_pattern[pos] == '}')//要么是{}, 要么是{...}, 两者形式都对
+                        if (_pattern[pos] == '}')//Either {} or {...}, both forms are correct
                         {
                             sub_format_error = false;
-                            ++pos;//让pos指向}的下一个字符处, 去判断是]或者下一个要处理的格式化字符
+                            //Let pos point to the next character of } to determine whether it is ] or the next formatting character to be processed
+                            ++pos;
                             break;
                         }
                         val.append(1, _pattern[pos++]);
                     }
                 }
 
-                //改动
-                //原本是没有if判断, 直接写着arr.push_back, 这里加上了判断. 这里有3种情况
-                //1、上面的if判断中, 如果子格式正确, 也就是以}结尾, 那么sub就是false, 这里就会设置进去
-                //2、如果是pos越界退出的, 此时子格式的形式就不对, 也就是{... 那么sub就是true, 那这里就不设置进去
-                //3、没有子格式, 没进if块中, sub_format_error就是默认的false，这里就会设置进去, 记录子格式用的val为默认的空
+                //Change
+                //Originally there was no if, and arr.push_back was written directly. The judgment is added here. There are three situations here
+                //1、In the above if judgment, if the sub format is correct, that is, it ends with }, then sub is false and will be set correctly
+                //2、If pos exits out of bounds, the form of the sub format is incorrect, that is, {... Then sub is true, so it will not be set.
+                //3、There is no subformat, and it doesn't enter the if block. The sub_format_error is false by default, and will be set here->
+                //->The val used to record the subformat is NULL by default.
                 if(!sub_format_error) arr.push_back(std::make_tuple(key, val, 1));
 
-                //无论怎样, 两个都清空
+                //Either way, clear both
                 key.clear();
                 val.clear();
             }
 
-            //为true, 也就是没有找到}, 没改成false就走出循环, 字符串到头了, 说明子格式不对
+            //Is true, that is, } is not found
+            //If it's not changed to false, it exits the loop, the string ends
+            //Indicate that the subformat is incorrect
             if (sub_format_error)
             {
-                std::cout << "{}对应出错\n";
+                std::cout << "{} error\n";
                 return false;
             }
 
-            //和while中的第一个if呼应
+            //Echoes the first if in while
             if (string_row.empty() == false) arr.push_back(std::make_tuple(string_row, "", 0));
 
-            //改动
-            //原本是有这一句, 现在是去掉了这句
+            //Change
+            //Originally there was this sentence, but now it has been removed
             //if (key.empty() == false) arr.push_back(std::make_tuple(key, val, 1));
 
-            //这里需要再看一下while循环, 在退出while之前, key都会被清空
-            //从while开始能够走到设置key那里, 说明没有越界; key之后, 没有退出整个while的情况, 走到最后key, val都会清空, 然后回到上面的while判断
-            //此时如果越界了就退出整个while, key为空, 不越界就继续, 此时就还是上句的情况
+            //Here we need to look at the while loop again. Before exiting the while, the key will be cleared
+            //Starting from while, the code can run to where the key is set, indicating that there is no out of bounds
+            //After the key, there is no exit from the entire while.vAt the end, the key and val will be cleared, then continue
+            //At this time, if the boundary is crossed, exit the entire while, and key is empty
+            //If it doesn't cross the boundary, continue. At this time, it's still the same situation as in the previous sentence
             
 
-            //2、根据解析得到的数据初始化格式化子项数组成员
-            for (auto &it : arr)//按照上面的改动, 此时arr里的都是正确的格式化字符、格式化字符+子格式、非格式化字符
+            //2、Use the parsed data to initialize the formatted child array members
+            //According to the above changes, at this time
+            //The contents in arr are correct formatting characters, or formatting characters + subformat, or non-formatting characters
+            for (auto &it : arr)
             {
-                //非格式化字符: (string_row, "", 0)
-                if (std::get<2>(it) == 0)//get<2>表示拿出第3个参数, 为0就是非格式化字符
+                //Non-formatting character: (string_row, "", 0)
+                if (std::get<2>(it) == 0)//get<2> means taking out the third parameter. 0 means it's an unformatted character
                 {
-                    FormatItem::ptr fi(new OtherFormatItem(std::get<0>(it)));//拿出对应的string_row
+                    FormatItem::ptr fi(new OtherFormatItem(std::get<0>(it)));//Take out the corresponding string_row
                     _items.push_back(fi);
                 }
-                else//格式化字符: (key, val, 1)
+                else//Format characters: (key, val, 1)
                 {
-                    FormatItem::ptr fi = createItem(std::get<0>(it), std::get<1>(it));//传入key，val
+                    FormatItem::ptr fi = createItem(std::get<0>(it), std::get<1>(it));//Pass in key， val
                     if (fi.get() == nullptr)
                     {
-                        std::cout << "没有对应的格式化字符: %" << std::get<0>(it) << std::endl;
+                        std::cout << "No corresponding formatting character: %" << std::get<0>(it) << std::endl;
                         return false;
                     }
                     _items.push_back(fi);
@@ -299,7 +314,7 @@ namespace Logs
             return true;
         }
     
-        //根据不同的格式化字符创建不同的格式化子项对象
+        //Create different formatting subkey objects based on different formatting characters
         FormatItem::ptr createItem(const std::string& key, const std::string& val)
         {
             if (key == "m") return FormatItem::ptr(new MsgFormatItem(val));
@@ -325,7 +340,7 @@ namespace Logs
             if(key.empty()) return std::make_shared<OtherFormatItem>(val);*/
         }
     private:
-        std::string _pattern;//格式化规则字符串
+        std::string _pattern;//Formatting rule string
         std::vector<FormatItem::ptr> _items;
     };
 }
