@@ -11,13 +11,13 @@ namespace Logs
     struct LogMsg
     {
         using ptr = std::shared_ptr<LogMsg>;
-        time_t _ctime;//日志产生的时间戳
-        size_t _line;//行号
-        std::thread::id _tid;//线程ID
-        std::string _file;//源码文件名
-        std::string _name;//日志器名称
-        std::string _payload;//有效载荷
-        LogLevel::value _level;//日志等级
+        time_t _ctime;//Timestamp of log generation
+        size_t _line;//Line number
+        std::thread::id _tid;//Thread ID
+        std::string _file;//Source code file name
+        std::string _name;//Logger name
+        std::string _payload;//Payload
+        LogLevel::value _level;//Log level
 
         LogMsg(LogLevel::value level,
                size_t line,
@@ -27,7 +27,7 @@ namespace Logs
                                               _tid(std::this_thread::get_id()), _file(file), _name(name), _payload(payload) {}
     };
 
-    //util.hpp中, Date的now函数返回的是time_t类型, 和这里的_ctime相匹配
+    //In util.hpp, Date::now returns time_t type, which matches the _ctime here.
 }
 
 #endif
