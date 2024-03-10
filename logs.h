@@ -1,5 +1,4 @@
-#ifndef __M_LOGS_H__
-#define __M_LOGS_H__
+
 
 #include "logger.hpp"
 
