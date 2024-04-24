@@ -253,7 +253,7 @@ namespace Logs
                     }
                 }
 
-                //Change
+                //Modify
                 //Originally there was no if, and arr.push_back was written directly. The judgment is added here. There are three situations here
                 //1、In the above if judgment, if the sub format is correct, that is, it ends with }, then sub is false and will be set correctly
                 //2、If pos exits out of bounds, the form of the sub format is incorrect, that is, {... Then sub is true, so it will not be set.
@@ -278,7 +278,7 @@ namespace Logs
             //Echoes the first if in while
             if (string_row.empty() == false) arr.push_back(std::make_tuple(string_row, "", 0));
 
-            //Change
+            //Modify
             //Originally there was this sentence, but now it has been removed
             //if (key.empty() == false) arr.push_back(std::make_tuple(key, val, 1));
 
