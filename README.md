@@ -1,3 +1,3 @@
 # Log-System
 ZYD's project
-<br><br>Environment: Linux CentOS 7.6
+<br><br>Environment: CentOS 7.6
